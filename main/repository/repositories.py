@@ -1,0 +1,430 @@
+from repository.singleton.PostgresSingleton import PostgreSQLConnectionSingleton
+
+
+
+class Repository:
+    def __init__(self):
+        # Obtém a conexão usando o Singleton
+        self.connection = PostgreSQLConnectionSingleton(database="postgres", user="postgres",
+                                                        password="batatinha123", host="localhost",
+                                                        port="5433").get_connection()
+
+    def close_connection(self):
+        if self.connection:
+            PostgreSQLConnectionSingleton().return_connection(self.connection)
+            self.connection = None
+
+    def execute_query(self, query, params=None):
+        with self.connection.cursor() as cursor:
+            cursor.execute(query, params)
+            self.connection.commit()
+
+    def fetch_query(self, query, params=None):
+        with self.connection.cursor() as cursor:
+            cursor.execute(query, params)
+            return cursor.fetchall()
+
+    def __del__(self):
+        self.close_connection()
+
+
+class ProjetoRepository(Repository):
+    def add_projeto(self, projeto):
+        query = ("INSERT INTO projeto (nome, data_inicio, data_fim, "
+                 "descricao, eh_pesquisa, eh_extensao) "
+                 "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id;")
+        params = (projeto.nome, projeto.data_inicio, projeto.data_fim, projeto.descricao, projeto.eh_pesquisa, projeto.eh_extensao)
+        self.execute_query(query, params)
+        projeto.id = self.fetch_query("SELECT LASTVAL();")[0][0]
+
+        # Adicionar associações com grande área
+        for grande_area_id in projeto.grande_areas:
+            self.add_grande_area_to_projeto(projeto.id, grande_area_id)
+
+    def get_projeto(self, projeto_id):
+        query = "SELECT * FROM projeto WHERE id = %s;"
+        projeto = self.fetch_query(query, (projeto_id,))
+        projeto.grande_areas = self.get_grande_areas_by_projeto(projeto_id)
+        return projeto
+
+    def update_projeto(self, projeto):
+        query = ("UPDATE projeto SET nome = %s, data_inicio = %s, data_fim = %s,"
+                 " descricao = %s, eh_pesquisa = %s, eh_extensao = %s WHERE id = %s;")
+        params = (projeto.nome, projeto.data_inicio, projeto.data_fim, projeto.descricao, projeto.eh_pesquisa, projeto.eh_extensao, projeto.id)
+        self.execute_query(query, params)
+
+        # Atualizar associações com grande área
+        self.clear_grande_areas_from_projeto(projeto.id)
+        for grande_area_id in projeto.grande_areas:
+            self.add_grande_area_to_projeto(projeto.id, grande_area_id)
+
+    def delete_projeto(self, projeto_id):
+        # Remover associações com grandes áreas antes de deletar o projeto
+        self.clear_grande_areas_from_projeto(projeto_id)
+        query = "DELETE FROM projeto WHERE id = %s;"
+        self.execute_query(query, (projeto_id,))
+
+    def add_grande_area_to_projeto(self, projeto_id, grande_area_id):
+        query = "INSERT INTO projeto_grande_area (projeto_id, grande_area_id) VALUES (%s, %s);"
+        self.execute_query(query, (projeto_id, grande_area_id))
+
+    def clear_grande_areas_from_projeto(self, projeto_id):
+        query = "DELETE FROM projeto_grande_area WHERE projeto_id = %s;"
+        self.execute_query(query, (projeto_id,))
+
+    def get_grande_areas_by_projeto(self, projeto_id):
+        query = "SELECT grande_area_id FROM projeto_grande_area WHERE projeto_id = %s;"
+        return [row[0] for row in self.fetch_query(query, (projeto_id,))]
+
+
+class SugestaoNovoProfessorRepository(Repository):
+    def add_sugestao(self, sugestao):
+        query = ("INSERT INTO sugestao_novo_professor (data_sugestao, nome_professor)"
+                 " VALUES (%s, %s) RETURNING id;")
+        params = (sugestao.data_sugestao, sugestao.nome_professor)
+        self.execute_query(query, params)
+        sugestao.id = self.fetch_query("SELECT LASTVAL();")[0][0]
+
+    def get_sugestao(self, sugestao_id):
+        query = "SELECT * FROM sugestao_novo_professor WHERE id = %s;"
+        return self.fetch_query(query, (sugestao_id,))
+
+    def update_sugestao(self, sugestao):
+        query = "UPDATE sugestao_novo_professor SET data_sugestao = %s, nome_professor = %s WHERE id = %s;"
+        params = (sugestao.data_sugestao, sugestao.nome_professor, sugestao.id)
+        self.execute_query(query, params)
+
+    def delete_sugestao(self, sugestao_id):
+        query = "DELETE FROM sugestao_novo_professor WHERE id = %s;"
+        self.execute_query(query, (sugestao_id,))
+
+
+class SugestaoMelhoriaRepository(Repository):
+    def add_sugestao(self, sugestao):
+        query = "INSERT INTO sugestao_melhoria (data_sugestao, sugestao) VALUES (%s, %s) RETURNING id;"
+        params = (sugestao.data_sugestao, sugestao.sugestao)
+        self.execute_query(query, params)
+        sugestao.id = self.fetch_query("SELECT LASTVAL();")[0][0]
+
+    def get_sugestao(self, sugestao_id):
+        query = "SELECT * FROM sugestao_melhoria WHERE id = %s;"
+        return self.fetch_query(query, (sugestao_id,))
+
+    def update_sugestao(self, sugestao):
+        query = "UPDATE sugestao_melhoria SET data_sugestao = %s, sugestao = %s WHERE id = %s;"
+        params = (sugestao.data_sugestao, sugestao.sugestao, sugestao.id)
+        self.execute_query(query, params)
+
+    def delete_sugestao(self, sugestao_id):
+        query = "DELETE FROM sugestao_melhoria WHERE id = %s;"
+        self.execute_query(query, (sugestao_id,))
+
+
+class PerfilRepository(Repository):
+    def add_perfil(self, perfil):
+        query = "INSERT INTO perfil (nome, curso, email_institucional) VALUES (%s, %s, %s) RETURNING id;"
+        params = (perfil.nome, perfil.curso, perfil.email_institucional)
+        self.execute_query(query, params)
+        perfil.id = self.fetch_query("SELECT LASTVAL();")[0][0]
+
+    def get_perfil(self, perfil_id):
+        query = "SELECT * FROM perfil WHERE id = %s;"
+        return self.fetch_query(query, (perfil_id,))
+
+    def update_perfil(self, perfil):
+        query = "UPDATE perfil SET nome = %s, curso = %s, email_institucional = %s WHERE id = %s;"
+        params = (perfil.nome, perfil.curso, perfil.email_institucional, perfil.id)
+        self.execute_query(query, params)
+
+    def delete_perfil(self, perfil_id):
+        query = "DELETE FROM perfil WHERE id = %s;"
+        self.execute_query(query, (perfil_id,))
+
+class GrandeAreaRepository(Repository):
+    def add_grande_area(self, grande_area):
+        query = "INSERT INTO grande_area (area) VALUES (%s) RETURNING id;"
+        params = (grande_area.area,)
+        self.execute_query(query, params)
+        grande_area.id = self.fetch_query("SELECT LASTVAL();")[0][0]
+
+    def get_grande_area(self, grande_area_id):
+        query = "SELECT * FROM grande_area WHERE id = %s;"
+        return self.fetch_query(query, (grande_area_id,))
+
+    def update_grande_area(self, grande_area):
+        query = "UPDATE grande_area SET area = %s WHERE id = %s;"
+        params = (grande_area.area, grande_area.id)
+        self.execute_query(query, params)
+
+    def delete_grande_area(self, grande_area_id):
+        query = "DELETE FROM grande_area WHERE id = %s;"
+        self.execute_query(query, (grande_area_id,))
+
+    def get_projetos_by_grande_area(self, grande_area_id):
+        query = ("SELECT p.* FROM projeto p "
+                 "JOIN projeto_grande_area pga ON p.id = pga.projeto_id "
+                 "WHERE pga.grande_area_id = %s;")
+        return self.fetch_query(query, (grande_area_id,))
+
+    def get_professores_by_grande_area(self, grande_area_id):
+        query = ("SELECT pr.* FROM professor pr "
+                 "JOIN professor_grande_area pga ON pr.id = pga.professor_id "
+                 "WHERE pga.grande_area_id = %s;")
+        return self.fetch_query(query, (grande_area_id,))
+
+    def get_alunos_by_grande_area(self, grande_area_id):
+        query = ("SELECT a.* FROM aluno a "
+                 "JOIN aluno_grande_area aga ON a.id = aga.aluno_id "
+                 "WHERE aga.grande_area_id = %s;")
+        return self.fetch_query(query, (grande_area_id,))
+
+
+class ExperienciaProfissionalRepository(Repository):
+    def add_experiencia(self, experiencia):
+        query = ("INSERT INTO experiencia_profissional "
+                 "(titulo, data_inicio, data_fim, descricao) VALUES (%s, %s, %s, %s) RETURNING id;")
+        params = (experiencia.titulo, experiencia.dataInicio, experiencia.dataFim, experiencia.descricao)
+        self.execute_query(query, params)
+        experiencia.id = self.fetch_query("SELECT LASTVAL();")[0][0]
+
+    def get_experiencia(self, experiencia_id):
+        query = "SELECT * FROM experiencia_profissional WHERE id = %s;"
+        return self.fetch_query(query, (experiencia_id,))
+
+    def update_experiencia(self, experiencia):
+        query = ("UPDATE experiencia_profissional SET "
+                 "titulo = %s, data_inicio = %s, data_fim = %s, descricao = %s WHERE id = %s;")
+        params = (experiencia.titulo, experiencia.dataInicio, experiencia.dataFim, experiencia.descricao, experiencia.id)
+        self.execute_query(query, params)
+
+    def delete_experiencia(self, experiencia_id):
+        query = "DELETE FROM experiencia_profissional WHERE id = %s;"
+        self.execute_query(query, (experiencia_id,))
+
+# CREATE TABLE aluno_projeto (
+#     aluno_id INT REFERENCES aluno(id),
+#     projeto_id INT REFERENCES projeto(id),
+#     PRIMARY KEY (aluno_id, projeto_id)
+# );
+
+class AlunoRepository(PerfilRepository):
+    def __init__(self):
+        super().__init__()
+        self.experiencia_profissional_repository = ExperienciaProfissionalRepository()
+
+    def add_aluno(self, aluno):
+        # Primeiro, adiciona os dados do perfil
+        self.add_perfil(aluno)
+        # Depois, adiciona os dados específicos do aluno
+        query = "INSERT INTO aluno (id, periodo, senha) VALUES (%s, %s, %s);"
+        params = (aluno.id, aluno.periodo, aluno.senha)
+        self.execute_query(query, params)
+
+        # Adiciona as experiências profissionais do aluno
+        for experiencia in aluno.experiencias_profissionais:
+            experiencia.id_perfil = aluno.id
+            self.experiencia_profissional_repository.add_experiencia(experiencia)
+
+        # Adicionar interesses em grandes áreas
+        for grande_area_id in aluno.grande_areas:
+            self.add_grande_area_to_aluno(aluno.id, grande_area_id)
+
+        # Adicionar participação em projetos
+        for projeto_id in aluno.projetos:
+            self.add_projeto_to_aluno(aluno.id, projeto_id)
+
+    def get_aluno(self, aluno_id):
+        # Obtém os dados do perfil
+        perfil_data = self.get_perfil(aluno_id)
+        # Obtém os dados específicos do aluno
+        query = "SELECT periodo, senha FROM aluno WHERE id = %s;"
+        aluno_data = self.fetch_query(query, (aluno_id,))
+
+        # Obtém as experiências profissionais do aluno
+        query = "SELECT * FROM experiencia_profissional WHERE id_perfil = %s;"
+        experiencias_data = self.fetch_query(query, (aluno_id,))
+
+        # Obtém os interesses em grandes áreas
+        query = "SELECT grande_area_id FROM aluno_grande_area WHERE aluno_id = %s;"
+        grande_areas = [row[0] for row in self.fetch_query(query, (aluno_id,))]
+
+        # Obtém a participação em projetos
+        query = "SELECT projeto_id FROM aluno_projeto WHERE aluno_id = %s;"
+        projetos = [row[0] for row in self.fetch_query(query, (aluno_id,))]
+
+        return perfil_data + aluno_data + experiencias_data + grande_areas + projetos
+
+    def update_aluno(self, aluno):
+        # Atualiza os dados do perfil
+        self.update_perfil(aluno)
+        # Atualiza os dados específicos do aluno
+        query = "UPDATE aluno SET periodo = %s, senha = %s WHERE id = %s;"
+        params = (aluno.periodo, aluno.senha, aluno.id)
+        self.execute_query(query, params)
+
+        # Atualiza as experiências profissionais do aluno
+        for experiencia in aluno.experiencias_profissionais:
+            self.experiencia_profissional_repository.update_experiencia(experiencia)
+
+        # Atualiza interesses em grandes áreas
+        self.clear_grande_areas_from_aluno(aluno.id)
+        for grande_area_id in aluno.grande_areas:
+            self.add_grande_area_to_aluno(aluno.id, grande_area_id)
+
+        # Atualiza participação em projetos
+        self.clear_projetos_from_aluno(aluno.id)
+        for projeto_id in aluno.projetos:
+            self.add_projeto_to_aluno(aluno.id, projeto_id)
+
+    def delete_aluno(self, aluno_id):
+        # Deleta as experiências profissionais do aluno
+        query = "DELETE FROM experiencia_profissional WHERE id_perfil = %s;"
+        self.execute_query(query, (aluno_id,))
+        # Deleta os interesses em grandes áreas
+        self.clear_grande_areas_from_aluno(aluno_id)
+        # Deleta a participação em projetos
+        self.clear_projetos_from_aluno(aluno_id)
+        # Deleta os dados específicos do aluno
+        query = "DELETE FROM aluno WHERE id = %s;"
+        self.execute_query(query, (aluno_id,))
+        # Deleta os dados do perfil
+        self.delete_perfil(aluno_id)
+
+    def add_grande_area_to_aluno(self, aluno_id, grande_area_id):
+        query = "INSERT INTO aluno_grande_area (aluno_id, grande_area_id) VALUES (%s, %s);"
+        self.execute_query(query, (aluno_id, grande_area_id))
+
+    def clear_grande_areas_from_aluno(self, aluno_id):
+        query = "DELETE FROM aluno_grande_area WHERE aluno_id = %s;"
+        self.execute_query(query, (aluno_id,))
+
+    def remove_grande_area_from_aluno(self, aluno_id, grande_area_id):
+        query = "DELETE FROM aluno_grande_area WHERE aluno_id = %s AND grande_area_id = %s;"
+        self.execute_query(query, (aluno_id, grande_area_id))
+
+    def add_projeto_to_aluno(self, aluno_id, projeto_id):
+        query = "INSERT INTO aluno_projeto (aluno_id, projeto_id) VALUES (%s, %s);"
+        self.execute_query(query, (aluno_id, projeto_id))
+
+    def clear_projetos_from_aluno(self, aluno_id):
+        query = "DELETE FROM aluno_projeto WHERE aluno_id = %s;"
+        self.execute_query(query, (aluno_id,))
+
+    def remove_projeto_from_aluno(self, aluno_id, projeto_id):
+        query = "DELETE FROM aluno_projeto WHERE aluno_id = %s AND projeto_id = %s;"
+        self.execute_query(query, (aluno_id, projeto_id))
+
+# CREATE TABLE professor_projeto (
+#     professor_id INT REFERENCES professor(id),
+#     projeto_id INT REFERENCES projeto(id),
+#     PRIMARY KEY (professor_id, projeto_id)
+# );
+class ProfessorRepository(PerfilRepository):
+    def add_professor(self, professor):
+        # Primeiro, adiciona os dados do perfil
+        self.add_perfil(professor)
+        # Depois, adiciona os dados específicos do professor
+        query = "INSERT INTO professor (id, numero_sala) VALUES (%s, %s);"
+        params = (professor.id, professor.numeroSala)
+        self.execute_query(query, params)
+
+        # Adicionar interesses em grandes áreas
+        for grande_area_id in professor.grande_areas:
+            self.add_grande_area_to_professor(professor.id, grande_area_id)
+
+        # Adicionar orientação de projetos
+        for projeto_id in professor.projetos_orientados:
+            self.add_projeto_to_professor(professor.id, projeto_id)
+
+    def get_professor(self, professor_id):
+        # Obtém os dados do perfil
+        perfil_data = self.get_perfil(professor_id)
+        # Obtém os dados específicos do professor
+        query = "SELECT numero_sala FROM professor WHERE id = %s;"
+        professor_data = self.fetch_query(query, (professor_id,))
+
+        # Obtém os interesses em grandes áreas
+        query = ("SELECT ga.area FROM professor_grande_area pga "
+                 "JOIN grande_area ga ON pga.grande_area_id = ga.id "
+                 "WHERE pga.professor_id = %s;")
+        grande_areas = [row[0] for row in self.fetch_query(query, (professor_id,))]
+
+        # Obtém os projetos orientados
+        query = "SELECT projeto_id FROM professor_projeto WHERE professor_id = %s;"
+        projetos_orientados = [row[0] for row in self.fetch_query(query, (professor_id,))]
+
+        return perfil_data + professor_data + grande_areas + projetos_orientados
+
+    def update_professor(self, professor):
+        # Atualiza os dados do perfil
+        self.update_perfil(professor)
+        # Atualiza os dados específicos do professor
+        query = "UPDATE professor SET numero_sala = %s WHERE id = %s;"
+        params = (professor.numeroSala, professor.id)
+        self.execute_query(query, params)
+
+        # Atualiza interesses em grandes áreas
+        self.clear_grande_areas_from_professor(professor.id)
+        for grande_area_id in professor.grande_areas:
+            self.add_grande_area_to_professor(professor.id, grande_area_id)
+
+        # Atualiza orientação de projetos
+        self.clear_projetos_from_professor(professor.id)
+        for projeto_id in professor.projetos_orientados:
+            self.add_projeto_to_professor(professor.id, projeto_id)
+
+    def delete_professor(self, professor_id):
+        # Deleta os interesses em grandes áreas
+        self.clear_grande_areas_from_professor(professor_id)
+        # Deleta orientação de projetos
+        self.clear_projetos_from_professor(professor_id)
+        # Deleta os dados específicos do professor
+        query = "DELETE FROM professor WHERE id = %s;"
+        self.execute_query(query, (professor_id,))
+        # Deleta os dados do perfil
+        self.delete_perfil(professor_id)
+
+    def add_grande_area_to_professor(self, professor_id, grande_area_id):
+        query = "INSERT INTO professor_grande_area (professor_id, grande_area_id) VALUES (%s, %s);"
+        self.execute_query(query, (professor_id, grande_area_id))
+
+    def clear_grande_areas_from_professor(self, professor_id):
+        query = "DELETE FROM professor_grande_area WHERE professor_id = %s;"
+        self.execute_query(query, (professor_id,))
+
+    def add_projeto_to_professor(self, professor_id, projeto_id):
+        query = "INSERT INTO professor_projeto (professor_id, projeto_id) VALUES (%s, %s);"
+        self.execute_query(query, (professor_id, projeto_id))
+
+    def clear_projetos_from_professor(self, professor_id):
+        query = "DELETE FROM professor_projeto WHERE professor_id = %s;"
+        self.execute_query(query, (professor_id,))
+
+    def remove_projeto_from_professor(self, professor_id, projeto_id):
+        query = "DELETE FROM professor_projeto WHERE professor_id = %s AND projeto_id = %s;"
+        self.execute_query(query, (professor_id, projeto_id))
+
+    def remove_grande_area_from_professor(self, professor_id, grande_area_id):
+        query = "DELETE FROM professor_grande_area WHERE professor_id = %s AND grande_area_id = %s;"
+        self.execute_query(query, (professor_id, grande_area_id))
+
+    def get_all_professores(self):
+        query = ("SELECT p.id, p.nome, p.curso, p.email_institucional, pr.numero_sala, "
+                 "ARRAY(SELECT ga.area FROM professor_grande_area pga "
+                 "JOIN grande_area ga ON pga.grande_area_id = ga.id "
+                 "WHERE pga.professor_id = pr.id) AS grande_areas "
+                 "FROM professor pr "
+                 "JOIN perfil p ON pr.id_perfil = p.id;")
+        return self.fetch_query(query)
+
+    def get_professores_by_grande_area(self, grande_area_id):
+        query = ("SELECT p.id, p.nome, p.curso, p.email_institucional, pr.numero_sala, "
+                 "ARRAY(SELECT ga.area FROM professor_grande_area pga "
+                 "JOIN grande_area ga ON pga.grande_area_id = ga.id "
+                 "WHERE pga.professor_id = pr.id) AS grande_areas "
+                 "FROM professor pr "
+                 "JOIN perfil p ON pr.id_perfil = p.id "
+                 "JOIN professor_grande_area pga ON pr.id = pga.professor_id "
+                 "WHERE pga.grande_area_id = %s;")
+        return self.fetch_query(query, (grande_area_id,))
+
