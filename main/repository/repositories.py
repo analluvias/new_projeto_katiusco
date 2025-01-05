@@ -29,6 +29,12 @@ class Repository:
 
 
 class ProjetoRepository(Repository):
+
+    def get_all_projetos(self):
+        query = "SELECT * FROM projeto;"
+        return self.fetch_query(query)
+
+
     def add_projeto(self, projeto):
         query = ("INSERT INTO projeto (nome, data_inicio, data_fim, "
                  "descricao, eh_pesquisa, eh_extensao) "
@@ -126,6 +132,7 @@ class PerfilRepository(Repository):
         params = (perfil.nome, perfil.curso, perfil.email_institucional)
         self.execute_query(query, params)
         perfil.id = self.fetch_query("SELECT LASTVAL();")[0][0]
+        return perfil.id
 
     def get_perfil(self, perfil_id):
         query = "SELECT * FROM perfil WHERE id = %s;"
@@ -178,12 +185,16 @@ class GrandeAreaRepository(Repository):
                  "WHERE aga.grande_area_id = %s;")
         return self.fetch_query(query, (grande_area_id,))
 
+    def get_all_grande_areas(self):
+        query = "SELECT * FROM grande_area;"
+        return self.fetch_query(query)
+
 
 class ExperienciaProfissionalRepository(Repository):
-    def add_experiencia(self, experiencia):
+    def add_experiencia(self, experiencia, id):
         query = ("INSERT INTO experiencia_profissional "
-                 "(titulo, data_inicio, data_fim, descricao) VALUES (%s, %s, %s, %s) RETURNING id;")
-        params = (experiencia.titulo, experiencia.dataInicio, experiencia.dataFim, experiencia.descricao)
+                 "(id_aluno, titulo, data_inicio, data_fim, descricao) VALUES (%s, %s, %s, %s, %s) RETURNING id;")
+        params = (id, experiencia.titulo, experiencia.dataInicio, experiencia.dataFim, experiencia.descricao)
         self.execute_query(query, params)
         experiencia.id = self.fetch_query("SELECT LASTVAL();")[0][0]
 
@@ -206,24 +217,22 @@ class ExperienciaProfissionalRepository(Repository):
 #     projeto_id INT REFERENCES projeto(id),
 #     PRIMARY KEY (aluno_id, projeto_id)
 # );
-
 class AlunoRepository(PerfilRepository):
     def __init__(self):
         super().__init__()
         self.experiencia_profissional_repository = ExperienciaProfissionalRepository()
 
-    def add_aluno(self, aluno):
-        # Primeiro, adiciona os dados do perfil
-        self.add_perfil(aluno)
+    def add_aluno(self, aluno, id_perfil):
         # Depois, adiciona os dados específicos do aluno
-        query = "INSERT INTO aluno (id, periodo, senha) VALUES (%s, %s, %s);"
-        params = (aluno.id, aluno.periodo, aluno.senha)
+        query = "INSERT INTO aluno (id_perfil, periodo, senha) VALUES (%s, %s, %s);"
+        params = (id_perfil, aluno.periodo, aluno.senha)
         self.execute_query(query, params)
+        aluno.id = self.fetch_query("SELECT LASTVAL();")[0][0]
 
         # Adiciona as experiências profissionais do aluno
         for experiencia in aluno.experiencias_profissionais:
             experiencia.id_perfil = aluno.id
-            self.experiencia_profissional_repository.add_experiencia(experiencia)
+            self.experiencia_profissional_repository.add_experiencia(experiencia, aluno.id)
 
         # Adicionar interesses em grandes áreas
         for grande_area_id in aluno.grande_areas:
@@ -233,23 +242,29 @@ class AlunoRepository(PerfilRepository):
         for projeto_id in aluno.projetos:
             self.add_projeto_to_aluno(aluno.id, projeto_id)
 
+        return aluno.id
+
     def get_aluno(self, aluno_id):
         # Obtém os dados do perfil
         perfil_data = self.get_perfil(aluno_id)
         # Obtém os dados específicos do aluno
-        query = "SELECT periodo, senha FROM aluno WHERE id = %s;"
+        query = "SELECT periodo, senha FROM aluno WHERE id_perfil = %s;"
         aluno_data = self.fetch_query(query, (aluno_id,))
 
         # Obtém as experiências profissionais do aluno
-        query = "SELECT * FROM experiencia_profissional WHERE id_perfil = %s;"
+        query = "SELECT * FROM experiencia_profissional WHERE id_aluno = %s;"
         experiencias_data = self.fetch_query(query, (aluno_id,))
 
         # Obtém os interesses em grandes áreas
-        query = "SELECT grande_area_id FROM aluno_grande_area WHERE aluno_id = %s;"
+        query = ("SELECT ga.area FROM aluno_grande_area aga "
+                 "JOIN grande_area ga ON aga.grande_area_id = ga.id "
+                 "WHERE aga.aluno_id = %s;")
         grande_areas = [row[0] for row in self.fetch_query(query, (aluno_id,))]
 
         # Obtém a participação em projetos
-        query = "SELECT projeto_id FROM aluno_projeto WHERE aluno_id = %s;"
+        query = ("SELECT p.nome FROM aluno_projeto ap "
+                 "JOIN projeto p ON ap.projeto_id = p.id "
+                 "WHERE ap.aluno_id = %s;")
         projetos = [row[0] for row in self.fetch_query(query, (aluno_id,))]
 
         return perfil_data + aluno_data + experiencias_data + grande_areas + projetos
@@ -258,7 +273,7 @@ class AlunoRepository(PerfilRepository):
         # Atualiza os dados do perfil
         self.update_perfil(aluno)
         # Atualiza os dados específicos do aluno
-        query = "UPDATE aluno SET periodo = %s, senha = %s WHERE id = %s;"
+        query = "UPDATE aluno SET periodo = %s, senha = %s WHERE id_perfil = %s;"
         params = (aluno.periodo, aluno.senha, aluno.id)
         self.execute_query(query, params)
 
@@ -285,7 +300,7 @@ class AlunoRepository(PerfilRepository):
         # Deleta a participação em projetos
         self.clear_projetos_from_aluno(aluno_id)
         # Deleta os dados específicos do aluno
-        query = "DELETE FROM aluno WHERE id = %s;"
+        query = "DELETE FROM aluno WHERE id_perfil = %s;"
         self.execute_query(query, (aluno_id,))
         # Deleta os dados do perfil
         self.delete_perfil(aluno_id)
@@ -314,11 +329,47 @@ class AlunoRepository(PerfilRepository):
         query = "DELETE FROM aluno_projeto WHERE aluno_id = %s AND projeto_id = %s;"
         self.execute_query(query, (aluno_id, projeto_id))
 
+    def get_all_alunos(self):
+        query = ("SELECT p.id, p.nome, p.curso, p.email_institucional, a.periodo, a.senha, "
+                 "ARRAY(SELECT row_to_json(ep) FROM (SELECT ep.titulo, ep.data_inicio, ep.data_fim, ep.descricao FROM experiencia_profissional ep WHERE ep.id_aluno = a.id) ep) AS experiencias_profissionais, "
+                 "ARRAY(SELECT ga.area FROM aluno_grande_area aga "
+                 "JOIN grande_area ga ON aga.grande_area_id = ga.id "
+                 "WHERE aga.aluno_id = a.id) AS grande_areas, "
+                 "ARRAY(SELECT pj.nome FROM aluno_projeto ap "
+                 "JOIN projeto pj ON ap.projeto_id = pj.id "
+                 "WHERE ap.aluno_id = a.id) AS projetos "
+                 "FROM aluno a "
+                 "JOIN perfil p ON a.id_perfil = p.id;")
+        return self.fetch_query(query)
+
+    def get_alunos_by_grande_area(self, grande_area_id):
+        query = ("SELECT p.id, p.nome, p.curso, p.email_institucional, a.periodo, a.senha, "
+                 "ARRAY(SELECT ep.titulo FROM experiencia_profissional ep WHERE ep.id_perfil = p.id) AS experiencias_profissionais, "
+                 "ARRAY(SELECT ga.area FROM aluno_grande_area aga "
+                 "JOIN grande_area ga ON aga.grande_area_id = ga.id "
+                 "WHERE aga.aluno_id = a.id) AS grande_areas, "
+                 "ARRAY(SELECT pj.nome FROM aluno_projeto ap "
+                 "JOIN projeto pj ON ap.projeto_id = pj.id "
+                 "WHERE ap.aluno_id = a.id) AS projetos "
+                 "FROM aluno a "
+                 "JOIN perfil p ON a.id_perfil = p.id "
+                 "JOIN aluno_grande_area aga ON a.id = aga.aluno_id "
+                 "WHERE aga.grande_area_id = %s;")
+        return self.fetch_query(query, (grande_area_id,))
+
+
 # CREATE TABLE professor_projeto (
 #     professor_id INT REFERENCES professor(id),
 #     projeto_id INT REFERENCES projeto(id),
 #     PRIMARY KEY (professor_id, projeto_id)
 # );
+
+class CursoRepository(Repository):
+    def get_all_cursos(self):
+        query = "SELECT * FROM curso;"
+        return self.fetch_query(query)
+
+
 class ProfessorRepository(PerfilRepository):
     def add_professor(self, professor):
         # Primeiro, adiciona os dados do perfil
@@ -409,22 +460,30 @@ class ProfessorRepository(PerfilRepository):
         self.execute_query(query, (professor_id, grande_area_id))
 
     def get_all_professores(self):
-        query = ("SELECT p.id, p.nome, p.curso, p.email_institucional, pr.numero_sala, "
-                 "ARRAY(SELECT ga.area FROM professor_grande_area pga "
+        query = ("SELECT p.id, p.nome, p.curso, p.email_institucional, pr.numero_sala, " 
+                 "ARRAY(SELECT ga.area FROM professor_grande_area pga " 
                  "JOIN grande_area ga ON pga.grande_area_id = ga.id "
-                 "WHERE pga.professor_id = pr.id) AS grande_areas "
-                 "FROM professor pr "
+                 "WHERE pga.professor_id = pr.id) AS grande_areas, " 
+                 "ARRAY(SELECT pj.nome FROM professor_projeto pp " 
+                 "JOIN projeto pj ON pp.projeto_id = pj.id " 
+                 "WHERE pp.professor_id = pr.id) AS projetos_orientados "
+                 "FROM professor pr " 
                  "JOIN perfil p ON pr.id_perfil = p.id;")
         return self.fetch_query(query)
 
+    # talvez precise corrigir o pr.id ver dps
     def get_professores_by_grande_area(self, grande_area_id):
-        query = ("SELECT p.id, p.nome, p.curso, p.email_institucional, pr.numero_sala, "
-                 "ARRAY(SELECT ga.area FROM professor_grande_area pga "
+        query = ("SELECT p.id, p.nome, p.curso, p.email_institucional, pr.numero_sala, " 
+                 "ARRAY(SELECT ga.area FROM professor_grande_area pga " 
                  "JOIN grande_area ga ON pga.grande_area_id = ga.id "
-                 "WHERE pga.professor_id = pr.id) AS grande_areas "
-                 "FROM professor pr "
-                 "JOIN perfil p ON pr.id_perfil = p.id "
-                 "JOIN professor_grande_area pga ON pr.id = pga.professor_id "
+                 "WHERE pga.professor_id = pr.id) AS grande_areas, " 
+                 "ARRAY(SELECT pj.nome FROM professor_projeto pp " 
+                 "JOIN projeto pj ON pp.projeto_id = pj.id " 
+                 "WHERE pp.professor_id = pr.id) AS projetos_orientados "
+                 "FROM professor pr " 
+                 "JOIN perfil p ON pr.id_perfil = p.id " 
+                 "JOIN professor_grande_area pga ON pr.id_perfil = pga.professor_id " 
                  "WHERE pga.grande_area_id = %s;")
+
         return self.fetch_query(query, (grande_area_id,))
 

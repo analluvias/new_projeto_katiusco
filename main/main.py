@@ -1,7 +1,6 @@
 import requests
 import json
 
-from interface.interface import interface
 from repository.singleton.PostgresSingleton import PostgreSQLConnectionSingleton
 
 
@@ -53,6 +52,8 @@ def testbd():
 
 
 if __name__ == "__main__":
+    from interface.interface import interface
+
     # llama()
     # testbd()
     #
