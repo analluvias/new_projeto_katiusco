@@ -54,6 +54,8 @@ def cadastrar_aluno():
     from facade.facade import Facade
     import getpass
 
+    facade = Facade()
+
     cursos = ['engenharia de computação',
               'telemática',
               'técnico em informática']
@@ -173,7 +175,7 @@ def cadastrar_aluno():
     print('\n\nPor último, selecione os projetos participados:\n\n')
     projetos = inserir_projetos()
 
-    Facade.criar_aluno(nome, cursos[int(curso)-1], email, periodo, senha1, experiencias_profissionais, areas_interesse, projetos)
+    facade.criar_aluno(nome, cursos[int(curso)-1], email, periodo, senha1, experiencias_profissionais, areas_interesse, projetos)
 
 
 def inserir_projetos():

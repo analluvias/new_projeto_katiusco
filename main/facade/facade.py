@@ -188,8 +188,7 @@ class Facade:
         except:
             print("Verifique se a data início é menor que a data fim.")
 
-    @staticmethod
-    def criar_aluno(nome, curso, email_institucional, periodo, senha, experiencias_profissionais, areas_interesse, projetos):
+    def criar_aluno(self, nome, curso, email_institucional, periodo, senha, experiencias_profissionais, areas_interesse, projetos):
 
         from repository.repositories import AlunoRepository, PerfilRepository
 
