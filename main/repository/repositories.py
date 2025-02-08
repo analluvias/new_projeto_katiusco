@@ -138,6 +138,14 @@ class PerfilRepository(Repository):
         query = "SELECT * FROM perfil WHERE id = %s;"
         return self.fetch_query(query, (perfil_id,))
 
+    def update_curso_by_email(self, email, curso):
+        query = "UPDATE perfil SET curso = %s WHERE email_institucional = %s;"
+        self.execute_query(query, (curso, email))
+
+    def update_nome_by_email(self, email, novo_nome):
+        query = "UPDATE perfil SET nome = %s WHERE email_institucional = %s;"
+        self.execute_query(query, (novo_nome, email))
+
     def update_perfil(self, perfil):
         query = "UPDATE perfil SET nome = %s, curso = %s, email_institucional = %s WHERE id = %s;"
         params = (perfil.nome, perfil.curso, perfil.email_institucional, perfil.id)
@@ -244,6 +252,21 @@ class AlunoRepository(PerfilRepository):
 
         return aluno.id
 
+    def get_aluno_by_email(self, email):
+        query = ("SELECT a.id, p.nome, p.curso, p.email_institucional, a.periodo, a.senha, "
+                 "ARRAY(SELECT row_to_json(ep) FROM (SELECT ep.titulo, ep.data_inicio, ep.data_fim, ep.descricao, ep.id FROM experiencia_profissional ep WHERE ep.id_aluno = a.id) ep) AS experiencias_profissionais, "
+                 "ARRAY(SELECT ga.area FROM aluno_grande_area aga "
+                 "JOIN grande_area ga ON aga.grande_area_id = ga.id "
+                 "WHERE aga.aluno_id = a.id) AS grande_areas, "
+                 "ARRAY(SELECT pj.nome FROM aluno_projeto ap "
+                 "JOIN projeto pj ON ap.projeto_id = pj.id "
+                 "WHERE ap.aluno_id = a.id) AS projetos "
+                 "FROM aluno a "
+                 "JOIN perfil p ON a.id_perfil = p.id "
+                 "WHERE p.email_institucional = %s;")
+        resultado = self.fetch_query(query, (email,))
+        return resultado[0] if resultado else None
+
     def get_aluno(self, aluno_id):
         # Obtém os dados do perfil
         perfil_data = self.get_perfil(aluno_id)
@@ -321,17 +344,13 @@ class AlunoRepository(PerfilRepository):
         query = "INSERT INTO aluno_projeto (aluno_id, projeto_id) VALUES (%s, %s);"
         self.execute_query(query, (aluno_id, projeto_id))
 
-    def clear_projetos_from_aluno(self, aluno_id):
-        query = "DELETE FROM aluno_projeto WHERE aluno_id = %s;"
-        self.execute_query(query, (aluno_id,))
-
     def remove_projeto_from_aluno(self, aluno_id, projeto_id):
         query = "DELETE FROM aluno_projeto WHERE aluno_id = %s AND projeto_id = %s;"
         self.execute_query(query, (aluno_id, projeto_id))
 
     def get_all_alunos(self):
-        query = ("SELECT p.id, p.nome, p.curso, p.email_institucional, a.periodo, a.senha, "
-                 "ARRAY(SELECT row_to_json(ep) FROM (SELECT ep.titulo, ep.data_inicio, ep.data_fim, ep.descricao FROM experiencia_profissional ep WHERE ep.id_aluno = a.id) ep) AS experiencias_profissionais, "
+        query = ("SELECT a.id, p.nome, p.curso, p.email_institucional, a.periodo, a.senha, "
+                 "ARRAY(SELECT row_to_json(ep) FROM (SELECT ep.titulo, ep.data_inicio, ep.data_fim, ep.descricao, ep.id FROM experiencia_profissional ep WHERE ep.id_aluno = a.id) ep) AS experiencias_profissionais, "
                  "ARRAY(SELECT ga.area FROM aluno_grande_area aga "
                  "JOIN grande_area ga ON aga.grande_area_id = ga.id "
                  "WHERE aga.aluno_id = a.id) AS grande_areas, "
@@ -357,6 +376,19 @@ class AlunoRepository(PerfilRepository):
                  "WHERE aga.grande_area_id = %s;")
         return self.fetch_query(query, (grande_area_id,))
 
+    def update_periodo_by_email(self, email, periodo):
+        query = ("UPDATE aluno SET periodo = %s "
+                 "FROM perfil "
+                 "WHERE aluno.id_perfil = perfil.id "
+                 "AND perfil.email_institucional = %s;")
+        self.execute_query(query, (periodo, email))
+
+    def update_senha_by_email(self, email, senha):
+        query = ("UPDATE aluno SET senha = %s "
+                 "FROM perfil "
+                 "WHERE aluno.id_perfil = perfil.id "
+                 "AND perfil.email_institucional = %s;")
+        self.execute_query(query, (senha, email))
 
 # CREATE TABLE professor_projeto (
 #     professor_id INT REFERENCES professor(id),

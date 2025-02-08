@@ -1,6 +1,5 @@
 class SugestaoNovoProfessor:
-    def __init__(self, id, data_sugestao, nome_professor):
-        self._id = id
+    def __init__(self, data_sugestao, nome_professor):
         self._data_sugestao = data_sugestao
         self._nome_professor = nome_professor
 

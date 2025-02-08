@@ -1,4 +1,5 @@
-import Perfil
+
+from .Perfil import Perfil
 
 class Professor(Perfil):
     def __init__(self, id, nome, curso, email_institucional, numeroSala):

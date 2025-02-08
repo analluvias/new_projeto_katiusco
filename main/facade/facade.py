@@ -1,26 +1,94 @@
+# main/facade/facade.py
+
 from entity.Aluno import Aluno
 from entity.Perfil import Perfil
 from entity.ExperienciaProfissional import ExperienciaProfissional
-import emailable
+from entity.SugestaoNovoProfessor import SugestaoNovoProfessor
+from repository.repositories import (
+    ProfessorRepository,
+    AlunoRepository,
+    PerfilRepository,
+    ExperienciaProfissionalRepository,
+    ProjetoRepository,
+    GrandeAreaRepository,
+    CursoRepository
+)
+
 from datetime import datetime
+import psycopg2.errors
 
-
-def verifica_datas(data_inicio, data_fim):
-    formato = "%d/%m/%Y" # Ajuste o formato conforme necessário
-    data_inicio_dt = datetime.strptime(data_inicio, formato)
-    data_fim_dt = datetime.strptime(data_fim, formato)
-
-    if data_inicio_dt > data_fim_dt:
-        raise ValueError("Data inicial maior que a data final.")
-
-    return
+from repository.repositories import SugestaoNovoProfessorRepository
 
 
 class Facade:
 
-    def exibir_professores(self, opcao):
-        from repository.repositories import ProfessorRepository
+    def inserir_sugestao_professor(self, nome):
+        repository = SugestaoNovoProfessorRepository()
+        sugestao = SugestaoNovoProfessor(datetime.now().date(), nome)
+        repository.add_sugestao(sugestao)
 
+    def apagar_projeto_participado_por_email(self, email, projetos):
+        alunoRepository = AlunoRepository()
+        aluno = alunoRepository.get_aluno_by_email(email)
+        id = aluno[0]
+
+        for projeto in projetos:
+            alunoRepository.remove_projeto_from_aluno(id, projeto)
+
+    def inserir_projeto_participado_por_email(self, email, projetos):
+        alunoRepository = AlunoRepository()
+        aluno = alunoRepository.get_aluno_by_email(email)
+        id = aluno[0]
+
+        try:
+            for projeto in projetos:
+                alunoRepository.add_projeto_to_aluno(id, projeto)
+        except psycopg2.errors.UniqueViolation as e:
+            print("\nVocê já Participa do projeto. Selecione outro.\n")
+
+    def apagar_area_interesse_por_email(self, email, areas_interesse):
+        alunoRepository = AlunoRepository()
+        aluno = alunoRepository.get_aluno_by_email(email)
+        id = aluno[0]
+
+        for area in areas_interesse:
+            alunoRepository.remove_grande_area_from_aluno(id, area)
+
+    def inserir_areas_interesse_por_email(self, email, areas_interesse):
+        alunoRepository = AlunoRepository()
+        aluno = alunoRepository.get_aluno_by_email(email)
+        id = aluno[0]
+
+        try:
+            for area in areas_interesse:
+                alunoRepository.add_grande_area_to_aluno(id, area)
+        except psycopg2.errors.UniqueViolation as e:
+            print("\nVocê já demonstrou interesse na área. Selecione outra.\n")
+
+
+    def apagar_experiencia(self, id):
+        repository = ExperienciaProfissionalRepository()
+        repository.delete_experiencia(id)
+
+    def update_senha_by_email(self, email, senha):
+        repository = AlunoRepository()
+        repository.update_senha_by_email(email, senha)
+
+    def update_periodo_by_email(self, email, periodo):
+        repository = AlunoRepository()
+        repository.update_periodo_by_email(email, periodo)
+
+    def update_curso_by_email(self, email, curso):
+        repository = PerfilRepository()
+        repository.update_curso_by_email(email, curso)
+
+
+    def update_nome_by_email(self, email, nome):
+        repository = PerfilRepository()
+        repository.update_nome_by_email(email, nome)
+
+
+    def exibir_professores(self, opcao):
         repository = ProfessorRepository()
         professores = repository.get_all_professores()
 
@@ -29,11 +97,8 @@ class Facade:
                 self.exibir_detalhes_professor(professor)
         elif opcao == '2':
             areas = self.exibir_areas()
-            for a in areas: print(f'{a[0]}. {a[1]}')
-            area_index = input("Escolha a área de conhecimento (digite o índice): ")
-            if not area_index.isdigit() or int(area_index) not in range(1, len(areas) + 1):
-                print("Opção inválida, selecionando a primeira área por padrão.")
-                area_index = '1'
+            self.exibir_opcoes(areas, "Escolha a área de conhecimento")
+            area_index = self.obter_opcao_valida(areas)
             selected_area = areas[int(area_index) - 1][1]
 
             for professor in professores:
@@ -41,17 +106,9 @@ class Facade:
                     self.exibir_detalhes_professor(professor)
         elif opcao == '3':
             projetos = self.exibir_projetos()
-            for p in projetos:
-                print(f'{p[0]}. {p[1]}')
-            proj_index = input("Digite o índice do projeto desejado: ")
-
-            # Verifica se a opção é um número e se está no intervalo válido
-            if not proj_index.isdigit() or int(proj_index) not in range(1, len(projetos) + 1):
-                print("Opção inválida, selecionando a primeira área por padrão.")
-                proj_index = '1'  # Seleciona o índice 0, que é equivalente à primeira área (índice 1)
-
-            # Obtém o valor da área selecionada a partir do índice
-            selected_projeto = projetos[int(proj_index) - 1][1]  # Subtrai 1 porque os índices da lista começam em 0
+            self.exibir_opcoes(projetos, "Digite o índice do projeto desejado")
+            proj_index = self.obter_opcao_valida(projetos)
+            selected_projeto = projetos[int(proj_index) - 1][1]
 
             for professor in professores:
                 if selected_projeto in professor[6]:
@@ -69,6 +126,138 @@ class Facade:
         print(f"Projetos: {', '.join(professor[6])}")
         print("-" * 40)
 
+    def exibir_aluno(self, email):
+        repository = AlunoRepository()
+        aluno = repository.get_aluno_by_email(email)
+        self.exibir_detalhes_aluno(aluno)
+
+    def exibir_alunos(self, opcao):
+        repository = AlunoRepository()
+        alunos = repository.get_all_alunos()
+
+        if opcao == '1':
+            for aluno in alunos:
+                self.exibir_detalhes_aluno(aluno)
+        elif opcao == '2':
+            areas = self.exibir_areas()
+            self.exibir_opcoes(areas, "Escolha a área de interesse")
+            area_index = self.obter_opcao_valida(areas)
+            selected_area = areas[int(area_index) - 1][1]
+
+            for aluno in alunos:
+                if selected_area in aluno[7]:
+                    self.exibir_detalhes_aluno(aluno)
+        elif opcao == '3':
+            cursos = self.exibir_cursos()
+            self.exibir_opcoes(cursos, "Digite o índice do curso desejado")
+            curso_index = self.obter_opcao_valida(cursos)
+            selected_curso = cursos[int(curso_index) - 1][1]
+
+            for aluno in alunos:
+                if selected_curso == aluno[2]:
+                    self.exibir_detalhes_aluno(aluno)
+        elif opcao == '4':
+            projetos = self.exibir_projetos()
+            self.exibir_opcoes(projetos, "Digite o índice do projeto desejado")
+            proj_index = self.obter_opcao_valida(projetos)
+            selected_projeto = projetos[int(proj_index) - 1][1]
+
+            for aluno in alunos:
+                if selected_projeto in aluno[8]:
+                    self.exibir_detalhes_aluno(aluno)
+        else:
+            print("Opção inválida. Tente novamente.")
+
+    def criar_experiencia_profissional_aluno_by_email(self, email, titulo, data_inicio, data_fim, descricao):
+        try:
+            self.verifica_datas(data_inicio, data_fim)
+            alunoRepository = AlunoRepository()
+            aluno = alunoRepository.get_aluno_by_email(email)
+            id = aluno[0]
+            repository = ExperienciaProfissionalRepository()
+            experiencia = ExperienciaProfissional(None, titulo, data_inicio, data_fim, descricao)
+            repository.add_experiencia(experiencia, id)
+        except ValueError as e:
+            print(f"Erro: {e}")
+
+    def criar_experiencia_profissional_aluno(self, id, titulo, data_inicio, data_fim, descricao):
+        try:
+            self.verifica_datas(data_inicio, data_fim)
+            repository = ExperienciaProfissionalRepository()
+            experiencia = ExperienciaProfissional(None, titulo, data_inicio, data_fim, descricao)
+            repository.add_experiencia(experiencia, id)
+        except ValueError as e:
+            print(f"Erro: {e}")
+
+    def criar_aluno(self, nome, curso, email_institucional, periodo, senha, experiencias_profissionais, areas_interesse,
+                    projetos):
+        try:
+            self.verifica_email_institucional(email_institucional)
+            perfil = Perfil(None, nome, curso, email_institucional)
+            repo_perfil = PerfilRepository()
+            id_perfil = repo_perfil.add_perfil(perfil)
+        except ValueError as e:
+            print(f"Erro ao criar aluno: {e}")
+            return
+
+        try:
+            self.verificar_periodo(periodo)
+            self.verificar_senha(senha)
+            aluno = Aluno(None, nome, curso, email_institucional, periodo, senha)
+
+            for experiencia in experiencias_profissionais:
+                aluno.add_experiencia_profissional(experiencia)
+            for area in areas_interesse:
+                aluno.add_grande_area(area)
+            for projeto in projetos:
+                aluno.add_projeto(projeto)
+
+            repo_aluno = AlunoRepository()
+            id_aluno = repo_aluno.add_aluno(aluno, id_perfil)
+            return id_aluno
+        except ValueError as e:
+            print(f"Erro ao criar aluno: {e}")
+            return
+
+    def verifica_datas(self, data_inicio, data_fim):
+        formato = "%d/%m/%Y"
+        data_inicio_dt = datetime.strptime(data_inicio, formato)
+        data_fim_dt = datetime.strptime(data_fim, formato)
+        if data_inicio_dt > data_fim_dt:
+            raise ValueError("Data inicial maior que a data final.")
+
+    def verificar_senha(self, senha):
+        if len(senha) < 5:
+            raise ValueError("Senha deve ter pelo menos 5 caracteres.")
+
+    def verificar_periodo(self, periodo):
+        if not (1 <= int(periodo) <= 10):
+            raise ValueError("Período inválido.")
+
+    def verifica_email_institucional(self, email):
+        if '@academico.ifpb.edu.br' not in email:
+            raise ValueError("Email institucional incorreto.")
+
+    def exibir_opcoes(self, opcoes, mensagem):
+        print(mensagem)
+        for opcao in opcoes:
+            print(f'{opcao[0]}. {opcao[1]}')
+
+    def obter_opcao_valida(self, lista):
+        opcao = input("Escolha uma opção: ")
+        if not opcao.isdigit() or int(opcao) not in range(1, len(lista) + 1):
+            print("Opção inválida, selecionando a primeira opção por padrão.")
+            return '1'
+        return opcao
+
+    def exibir_projetos(self):
+        return ProjetoRepository().get_all_projetos()
+
+    def exibir_areas(self):
+        return GrandeAreaRepository().get_all_grande_areas()
+
+    def exibir_cursos(self):
+        return CursoRepository().get_all_cursos()
 
     def exibir_detalhes_aluno(self, aluno):
         print(f"\n\nID: {aluno[0]}")
@@ -84,173 +273,10 @@ class Facade:
         if aluno[6]:
             print("Estágios:")
             for estagio in aluno[6]:
+                print(f"  ID: {estagio['id']}")
                 print(f"  Título: {estagio['titulo']}")
                 print(f"  Data de Início: {estagio['data_inicio']}")
                 print(f"  Data de Fim: {estagio['data_fim']}")
-                print(f"  Descrição: {estagio['descricao']}")
+                print(f"  Descrição: {estagio['descricao']}\n")
 
         print("-" * 40)
-
-
-    def exibir_alunos(self, opcao):
-        from repository.repositories import AlunoRepository
-
-        repository = AlunoRepository()
-        alunos = repository.get_all_alunos()
-
-        if opcao == '1':
-            for aluno in alunos:
-                self.exibir_detalhes_aluno(aluno)
-        elif opcao == '2':
-
-            areas = self.exibir_areas()
-            for a in areas:
-                print(f'{a[0]}. {a[1]}')
-            area_index = input("Escolha a área de interesse (digite o índice): ")
-            # Verifica se a opção é um número e se está no intervalo válido
-            if not area_index.isdigit() or int(area_index) not in range(1, len(areas) + 1):
-                print("Opção inválida, selecionando a primeira área por padrão.")
-                area_index = '1'  # Seleciona o índice 0, que é equivalente à primeira área (índice 1)
-            # Obtém o valor da área selecionada a partir do índice
-            selected_area = areas[int(area_index) - 1][1]  # Subtrai 1 porque os índices da lista começam em 0
-
-            for aluno in alunos:
-                if selected_area in aluno[7]:
-                    self.exibir_detalhes_aluno(aluno)
-
-        elif opcao == '3':
-
-            cursos = self.exibir_cursos()
-            for c in cursos:
-                print(f'{c[0]}. {c[1]}')
-            curso_index = input("Digite o índice do curso desejado: ")
-
-            # Verifica se a opção é um número e se está no intervalo válido
-            if not curso_index.isdigit() or int(curso_index) not in range(1, len(cursos) + 1):
-                print("Opção inválida, selecionando a primeira área por padrão.")
-                curso_index = '1'  # Seleciona o índice 0, que é equivalente à primeira área (índice 1)
-
-            # Obtém o valor da área selecionada a partir do índice
-            selected_curso = cursos[int(curso_index) - 1][1]  # Subtrai 1 porque os índices da lista começam em 0
-
-            for aluno in alunos:
-                if selected_curso == aluno[2]:
-                    self.exibir_detalhes_aluno(aluno)
-
-        elif opcao == '4':
-            projetos = self.exibir_projetos()
-            for p in projetos:
-                print(f'{p[0]}. {p[1]}')
-            proj_index = input("Digite o índice do projeto desejado: ")
-
-            # Verifica se a opção é um número e se está no intervalo válido
-            if not proj_index.isdigit() or int(proj_index) not in range(1, len(projetos) + 1):
-                print("Opção inválida, selecionando a primeira área por padrão.")
-                proj_index = '1'  # Seleciona o índice 0, que é equivalente à primeira área (índice 1)
-
-            # Obtém o valor da área selecionada a partir do índice
-            selected_projeto = projetos[int(proj_index) - 1][1]  # Subtrai 1 porque os índices da lista começam em 0
-
-            for aluno in alunos:
-                if selected_projeto in aluno[8]:
-                    self.exibir_detalhes_aluno(aluno)
-        else:
-            print("Opção inválida. Tente novamente.")
-
-
-    def exibir_projetos(self):
-        from repository.repositories import ProjetoRepository
-        repository = ProjetoRepository()
-        return repository.get_all_projetos()
-
-
-    def exibir_areas(self):
-        from repository.repositories import GrandeAreaRepository
-        repository = GrandeAreaRepository()
-        return repository.get_all_grande_areas()
-
-
-    def exibir_cursos(self):
-        from repository.repositories import CursoRepository
-        repository = CursoRepository()
-        return repository.get_all_cursos()
-
-
-    def criar_experiencia_profissional_aluno(self, id, titulo, data_inicio, data_fim, descricao):
-
-        from repository.repositories import ExperienciaProfissionalRepository
-        
-        try:
-            verifica_datas(data_inicio, data_fim)
-            repository = ExperienciaProfissionalRepository()
-            experiencia = ExperienciaProfissional(None, titulo, data_inicio, data_fim, descricao)
-            repository.add_experiencia(experiencia, id)
-        except:
-            print("Verifique se a data início é menor que a data fim.")
-
-    def criar_aluno(self, nome, curso, email_institucional, periodo, senha, experiencias_profissionais, areas_interesse, projetos):
-
-        from repository.repositories import AlunoRepository, PerfilRepository
-
-        try:
-            verifica_email_institucional(email_institucional)
-            perfil = Perfil(None, nome, curso, email_institucional)
-            repo_perfil = PerfilRepository()
-            id_perfil = repo_perfil.add_perfil(perfil)
-        except:
-            print("Erro ao criar aluno, verifique se todos os campos"
-                  "estão preenchidos e se o email é institucional.")
-            return
-
-        try:
-            print("idddd", id_perfil)
-            verificar_periodo(periodo)
-            verificar_senha(senha)
-            aluno = Aluno(None, nome, curso, email_institucional, periodo, senha)
-
-            for experiencia in experiencias_profissionais:
-                print(experiencia)
-                aluno.add_experiencia_profissional(experiencia)
-
-            for area in areas_interesse:
-                aluno.add_grande_area(area)
-
-            for projeto in projetos:
-                aluno.add_projeto(projeto)
-
-            repo_aluno = AlunoRepository()
-            id_aluno = repo_aluno.add_aluno(aluno, id_perfil)
-        except:
-            print("Erro ao criar aluno, verifique se o período é válido"
-                  " e se a senha tem pelo menos 5 caracteres.")
-            return
-
-        return id_aluno
-
-def verificar_senha(senha):
-    if len(senha) >= 5:
-        return True
-    else:
-        raise ValueError(f"Senha deve ter pelo menos 5 caracteres.")
-
-
-def verificar_periodo(periodo):
-    if 1 <= int(periodo) <= 10:
-        return True
-    else:
-        raise ValueError(f"Período Inválido.")
-
-
-def verifica_email_institucional(email):
-    try:
-        # client = emailable.Client('test_ae3408af24bd480f6ab3')
-        # response = client.verify(email)
-
-        # if response.state == 'deliverable' and '@academico.ifpb.edu.br' in email:
-        #     return
-        if '@academico.ifpb.edu.br' in email:
-            return
-        else:
-            raise Exception('Email institucional incorreto.')
-    except Exception as e:
-        raise ValueError(f"Erro ao verificar o e-mail: {e}")

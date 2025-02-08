@@ -1,4 +1,4 @@
-from entity.Perfil import Perfil
+from .Perfil import Perfil
 
 class Aluno(Perfil):
     def __init__(self, id, nome, curso, email_institucional, periodo, senha):
