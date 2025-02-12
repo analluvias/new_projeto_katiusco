@@ -2,11 +2,12 @@
 from .Perfil import Perfil
 
 class Professor(Perfil):
-    def __init__(self, id, nome, curso, email_institucional, numeroSala):
+    def __init__(self, id, nome, curso, email_institucional, numeroSala, resumo):
         super().__init__(id, nome, curso, email_institucional)  # Chama o construtor da classe pai (Perfil)
         self._numeroSala = numeroSala
         self._areas_interesse = []  # Lista para armazenar as áreas de interesse
         self._projetos = []  # Lista para armazenar os projetos orientados
+        self.resumo = resumo
 
     # Getters
     @property

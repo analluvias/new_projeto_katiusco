@@ -32,7 +32,72 @@ def visualizar_professores():
         "3. Por projeto\n"
         "Digite o número da opção: ", 1, 3
     )
-    facade.exibir_professores(str(opcao))
+
+    professores = facade.exibir_professores()
+
+    opcao = str(opcao)
+
+    if opcao == '1':
+        for professor in professores:
+            exibir_detalhes_professor(professor)
+    elif opcao == '2':
+        areas = facade.exibir_areas()
+        exibir_opcoes(areas, "Escolha a área de conhecimento")
+        area_index = obter_opcao_valida(areas)
+        selected_area = areas[int(area_index) - 1][1]
+
+        for professor in professores:
+            if selected_area in professor[5]:
+                exibir_detalhes_professor(professor)
+    elif opcao == '3':
+        projetos = facade.exibir_projetos()
+        exibir_opcoes(projetos, "Digite o índice do projeto desejado")
+        proj_index = obter_opcao_valida(projetos)
+        selected_projeto = projetos[int(proj_index) - 1][1]
+
+        for professor in professores:
+            if selected_projeto in professor[6]:
+                exibir_detalhes_professor(professor)
+    else:
+        print("Opção inválida. Tente novamente.")
+
+
+def exibir_opcoes(opcoes, mensagem):
+    print(mensagem)
+    for opcao in opcoes:
+        print(f'{opcao[0]}. {opcao[1]}')
+
+
+def obter_opcao_valida(lista):
+    opcao = input("Escolha uma opção: ")
+    if not opcao.isdigit() or int(opcao) not in range(1, len(lista) + 1):
+        print("Opção inválida, selecionando a primeira opção por padrão.")
+        return '1'
+    return opcao
+
+
+
+def exibir_detalhes_aluno(aluno):
+    print(f"\n\nID: {aluno[0]}")
+    print(f"Nome: {aluno[1]}")
+    print(f"Curso: {aluno[2]}")
+    print(f"Email: {aluno[3]}")
+    print(f"Período: {aluno[4]}")
+    print(f"Senha: {aluno[5]}")
+    print(f"Áreas de interesse: {', '.join(aluno[7])}")
+    print(f"Projetos: {', '.join(aluno[8])}")
+
+    # Exibindo estágios (se houver)
+    if aluno[6]:
+        print("Estágios:")
+        for estagio in aluno[6]:
+            print(f"  ID: {estagio['id']}")
+            print(f"  Título: {estagio['titulo']}")
+            print(f"  Data de Início: {estagio['data_inicio']}")
+            print(f"  Data de Fim: {estagio['data_fim']}")
+            print(f"  Descrição: {estagio['descricao']}\n")
+
+    print("-" * 40)
 
 
 def visualizar_alunos():
@@ -47,7 +112,41 @@ def visualizar_alunos():
         "Digite o número da opção: ", 1, 4
     )
     facade = Facade()
-    facade.exibir_alunos(str(opcao))
+    opcao = str(opcao)
+    alunos = facade.exibir_alunos(str(opcao))
+
+    if opcao == '1':
+        for aluno in alunos:
+            exibir_detalhes_aluno(aluno)
+    elif opcao == '2':
+        areas = facade.exibir_areas()
+        exibir_opcoes(areas, "Escolha a área de interesse")
+        area_index = obter_opcao_valida(areas)
+        selected_area = areas[int(area_index) - 1][1]
+
+        for aluno in alunos:
+            if selected_area in aluno[7]:
+                exibir_detalhes_aluno(aluno)
+    elif opcao == '3':
+        cursos = facade.exibir_cursos()
+        exibir_opcoes(cursos, "Digite o índice do curso desejado")
+        curso_index = obter_opcao_valida(cursos)
+        selected_curso = cursos[int(curso_index) - 1][1]
+
+        for aluno in alunos:
+            if selected_curso == aluno[2]:
+                exibir_detalhes_aluno(aluno)
+    elif opcao == '4':
+        projetos = facade.exibir_projetos()
+        exibir_opcoes(projetos, "Digite o índice do projeto desejado")
+        proj_index = obter_opcao_valida(projetos)
+        selected_projeto = projetos[int(proj_index) - 1][1]
+
+        for aluno in alunos:
+            if selected_projeto in aluno[8]:
+                exibir_detalhes_aluno(aluno)
+    else:
+        print("Opção inválida. Tente novamente.")
 
 
 def inserir_areas_interesse():
@@ -59,12 +158,9 @@ def inserir_areas_interesse():
         print(f'{area[0]}. {area[1]}')
 
     while True:
-        areas_input = get_non_empty_input("Digite o número das suas áreas de interesse, separe por espaços:\n")
+        areas_input = input("Digite o número das suas áreas de interesse, separe por espaços:\n")
         areas_selecionadas = [int(numero) for numero in areas_input.split() if numero.isdigit()]
-        if areas_selecionadas:
-            return areas_selecionadas
-        print("Nenhuma área válida selecionada. Tente novamente.")
-
+        return areas_selecionadas
 
 def apagar_areas_interesse():
     from facade.facade import Facade
@@ -122,6 +218,11 @@ def cadastrar_aluno():
     # Experiências Profissionais
     print("\n\nAgora vamos cadastrar seus interesses e experiências.\n")
     while True:
+
+        if input("\nDeseja inserir (outra) experiência? (y/n): ").lower() != 'y':
+            break
+
+
         titulo = get_non_empty_input("\nInsira o título da experiência profissional: ")
 
         # Data de início
@@ -154,8 +255,6 @@ def cadastrar_aluno():
             ExperienciaProfissional(None, titulo, data_inicio_dt, data_fim_dt, descricao)
         )
 
-        if input("\nDeseja inserir outra experiência? (y/n): ").lower() != 'y':
-            break
 
     # Áreas de Interesse
     print("\nCadastre suas áreas de interesse:")
@@ -178,11 +277,9 @@ def inserir_projetos():
         print(f'{projeto[0]}. {projeto[1]}')
 
     while True:
-        projetos_input = get_non_empty_input("Digite o número dos projetos que já participou, separe por espaços:\n")
+        projetos_input = input("Digite o número dos projetos que já participou, separe por espaços:\n")
         proj_selecionados = [int(numero) for numero in projetos_input.split() if numero.isdigit()]
-        if proj_selecionados:
-            return proj_selecionados
-        print("Nenhum projeto válido selecionado. Tente novamente.")
+        return proj_selecionados
 
 
 def apagar_projetos():
@@ -230,7 +327,8 @@ def editar_vitrine():
         )
 
         if opcao == 1:
-            facade.exibir_aluno(email)
+            aluno = facade.exibir_aluno(email)
+            exibir_detalhes_aluno(aluno)
         elif opcao == 2:
             novo_nome = get_non_empty_input("Digite o novo nome: ")
             facade.update_nome_by_email(email, novo_nome)
@@ -253,6 +351,8 @@ def editar_vitrine():
                 print("\nAs senhas não coincidem!")
         elif opcao == 6:
             while True:
+                if input("\nAdicionar experiência? (y/n): ").lower() != 'y':
+                    break
                 titulo = get_non_empty_input("\nTítulo da experiência: ")
 
                 # Data de início
@@ -282,8 +382,6 @@ def editar_vitrine():
                 descricao = get_non_empty_input("Descrição: ")
                 facade.criar_experiencia_profissional_aluno_by_email(email, titulo, data_inicio, data_fim, descricao)
 
-                if input("\nAdicionar outra experiência? (y/n): ").lower() != 'y':
-                    break
         elif opcao == 7:
             experiencia_id = get_valid_number("\nID da experiência para apagar: ", 1)
             facade.apagar_experiencia(str(experiencia_id))
@@ -309,6 +407,17 @@ def inserir_sugestao_professor():
 
     nome = get_non_empty_input("\nDigite o nome do professor a sugerir: ")
     facade.inserir_sugestao_professor(nome)
+
+
+def exibir_detalhes_professor(professor):
+    print(f"\n\nID: {professor[0]}")
+    print(f"Nome: {professor[1]}")
+    print(f"Disciplina: {professor[2]}")
+    print(f"Email: {professor[3]}")
+    print(f"Sala: {professor[4]}")
+    print(f"Áreas de conhecimento: {', '.join(professor[5])}")
+    print(f"Projetos: {', '.join(professor[6])}")
+    print("-" * 40)
 
 
 def interface():

@@ -1,5 +1,4 @@
 import requests
-import emailable
 
 class Perfil:
     def __init__(self, id, nome, curso, email_institucional):

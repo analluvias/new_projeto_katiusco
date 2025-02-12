@@ -403,21 +403,22 @@ class CursoRepository(Repository):
 
 
 class ProfessorRepository(PerfilRepository):
-    def add_professor(self, professor):
-        # Primeiro, adiciona os dados do perfil
-        self.add_perfil(professor)
-        # Depois, adiciona os dados específicos do professor
-        query = "INSERT INTO professor (id, numero_sala) VALUES (%s, %s);"
-        params = (professor.id, professor.numeroSala)
+    def add_professor(self, professor, id_perfil):
+        # Adiciona os dados específicos do professor
+        query = "INSERT INTO professor (id_perfil, resumo) VALUES (%s, %s);"
+        params = (id_perfil, professor.resumo)
         self.execute_query(query, params)
+        professor.id = self.fetch_query("SELECT LASTVAL();")[0][0]
 
-        # Adicionar interesses em grandes áreas
-        for grande_area_id in professor.grande_areas:
-            self.add_grande_area_to_professor(professor.id, grande_area_id)
+        # Adiciona as áreas de interesse do professor
+        for area in professor._areas_interesse:
+            self.add_grande_area_to_professor(professor.id, area)
 
-        # Adicionar orientação de projetos
-        for projeto_id in professor.projetos_orientados:
+        # Adiciona participação em projetos
+        for projeto_id in professor._projetos:
             self.add_projeto_to_professor(professor.id, projeto_id)
+
+        return professor.id
 
     def get_professor(self, professor_id):
         # Obtém os dados do perfil
