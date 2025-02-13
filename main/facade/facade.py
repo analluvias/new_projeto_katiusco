@@ -4,22 +4,21 @@ from entity.Aluno import Aluno
 from entity.Perfil import Perfil
 from entity.ExperienciaProfissional import ExperienciaProfissional
 from entity.SugestaoNovoProfessor import SugestaoNovoProfessor
-from repository.repositories import (
+from repository.repository import (
     ProfessorRepository,
     AlunoRepository,
     PerfilRepository,
     ExperienciaProfissionalRepository,
     ProjetoRepository,
     GrandeAreaRepository,
-    CursoRepository
+    CursoRepository,
+    SugestaoNovoProfessorRepository
 )
 
 from datetime import datetime
 import psycopg2.errors
 
-from repository.repositories import SugestaoNovoProfessorRepository
-
-from main.entity import Professor
+from entity import Professor
 
 
 class Facade:

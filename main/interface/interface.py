@@ -9,6 +9,13 @@ def get_non_empty_input(prompt):
             return value
         print("Este campo não pode ser vazio. Por favor, digite novamente.")
 
+def get_valid_password(prompt):
+    while True:
+        value = input(prompt).strip()
+        if len(value) >= 5:
+            return value
+        print("Este campo não pode ter menos que 5 caracteres. Por favor, digite novamente.")
+
 
 def get_valid_number(prompt, min_val=None, max_val=None):
     while True:
@@ -205,12 +212,12 @@ def cadastrar_aluno():
             break
 
     # Período
-    periodo = get_valid_number("\nDigite o período em que você está matriculado: ", 1, 100)
+    periodo = get_valid_number("\nDigite o período em que você está matriculado: ", 1, 10)
 
     # Senha
     while True:
-        senha1 = get_non_empty_input("\nDigite a senha desejada: ")
-        senha2 = get_non_empty_input("\nConfirme sua senha: ")
+        senha1 = get_valid_password("\nDigite a senha desejada: ")
+        senha2 = get_valid_password("\nConfirme sua senha: ")
         if senha1 == senha2:
             break
         print("\n*As senhas não coincidem*\n")
@@ -343,8 +350,8 @@ def editar_vitrine():
             facade.update_periodo_by_email(email, str(novo_periodo))
         elif opcao == 5:
             while True:
-                nova_senha = get_non_empty_input("\nNova senha: ")
-                confirmacao = get_non_empty_input("Confirme a senha: ")
+                nova_senha = get_valid_password("\nNova senha: ")
+                confirmacao = get_valid_password("Confirme a senha: ")
                 if nova_senha == confirmacao:
                     facade.update_senha_by_email(email, nova_senha)
                     break
