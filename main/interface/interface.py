@@ -90,9 +90,14 @@ def exibir_detalhes_aluno(aluno):
     print(f"Curso: {aluno[2]}")
     print(f"Email: {aluno[3]}")
     print(f"Período: {aluno[4]}")
+
     print(f"Senha: {aluno[5]}")
-    print(f"Áreas de interesse: {', '.join(aluno[7])}")
-    print(f"Projetos: {', '.join(aluno[8])}")
+
+    if len(aluno[7]) >= 1:
+        print(f"Áreas de interesse: {', '.join(aluno[7])}")
+
+    if len(aluno[8]) >= 1:
+        print(f"Projetos: {', '.join(aluno[8])}")
 
     # Exibindo estágios (se houver)
     if aluno[6]:
@@ -419,11 +424,9 @@ def inserir_sugestao_professor():
 def exibir_detalhes_professor(professor):
     print(f"\n\nID: {professor[0]}")
     print(f"Nome: {professor[1]}")
-    print(f"Disciplina: {professor[2]}")
-    print(f"Email: {professor[3]}")
-    print(f"Sala: {professor[4]}")
-    print(f"Áreas de conhecimento: {', '.join(professor[5])}")
-    print(f"Projetos: {', '.join(professor[6])}")
+    print(f"Resumo: {professor[2]}")
+    print(f"Áreas de conhecimento: {', '.join(professor[3])}")
+    print(f"Projetos: {', '.join(professor[4])}")
     print("-" * 40)
 
 

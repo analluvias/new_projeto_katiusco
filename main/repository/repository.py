@@ -493,7 +493,7 @@ class ProfessorRepository(PerfilRepository):
         self.execute_query(query, (professor_id, grande_area_id))
 
     def get_all_professores(self):
-        query = ("SELECT p.id, p.nome, p.curso, p.email_institucional, pr.numero_sala, " 
+        query = ("SELECT p.id, p.nome, pr.resumo, " 
                  "ARRAY(SELECT ga.area FROM professor_grande_area pga " 
                  "JOIN grande_area ga ON pga.grande_area_id = ga.id "
                  "WHERE pga.professor_id = pr.id) AS grande_areas, " 
